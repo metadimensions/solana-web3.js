@@ -15,6 +15,41 @@ function generateConfig(configType, format) {
   const config = {
     input: 'src/index.ts',
     plugins: [
+       alias({
+        entries: [
+          {
+            find: /^\./, // Relative paths.
+            replacement: '.',
+            async customResolver(source, importer, options) {
+              const resolved = await this.resolve(source, importer, {
+                skipSelf: true,
+                ...options,
+              });
+              if (resolved == null) {
+                return;
+              }
+              const {id: resolvedId} = resolved;
+              const directory = path.dirname(resolvedId);
+              const moduleFilename = path.basename(resolvedId);
+              const forkPath = path.join(
+                directory,
+                '__forks__',
+                configType,
+                moduleFilename,
+              );
+              const hasForkCacheKey = `has_fork:${forkPath}`;
+              let hasFork = this.cache.get(hasForkCacheKey);
+              if (hasFork === undefined) {
+                hasFork = fs.existsSync(forkPath);
+                this.cache.set(hasForkCacheKey, hasFork);
+              }
+              if (hasFork) {
+                return forkPath;
+              }
+            },
+          },
+        ],
+      }),
       commonjs(),
       nodeResolve({
         browser,
